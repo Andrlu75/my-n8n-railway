@@ -1,14 +1,18 @@
 FROM n8nio/n8n:latest
 
-# Переключаемся на администратора для подготовки окружения
 USER root
 RUN apk add --no-cache git
-# Обновляем npm глобально до последней версии
-RUN npm install -g npm@latest
 
-# Возвращаемся к обычному пользователю
+# Создаем отдельную директорию для кастомных модулей
+RUN mkdir -p /usr/local/n8n-custom
+RUN chown -R node:node /usr/local/n8n-custom
+
 USER node
-# Указываем рабочую директорию
-WORKDIR /usr/local/lib/node_modules/n8n
-# Устанавливаем пакет, используя уже обновленный npm
+WORKDIR /usr/local/n8n-custom
+
+# Инициализируем новый npm проект и устанавливаем модуль
+RUN npm init -y
 RUN npm install officeparser
+
+# Возвращаемся в стандартную рабочую директорию
+WORKDIR /home/node
