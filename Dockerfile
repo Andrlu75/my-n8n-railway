@@ -9,11 +9,14 @@ RUN mkdir /custom_modules
 # Устанавливаем git, который может понадобиться для некоторых npm пакетов
 RUN apk add --no-cache git
 
+# !!! ВАЖНЫЙ ШАГ: Делаем пользователя 'node' владельцем этой папки
+RUN chown -R node:node /custom_modules
+
 # Возвращаемся к стандартному пользователю n8n для безопасности
 USER node
 
 # Явно указываем эту новую директорию как рабочую
 WORKDIR /custom_modules
 
-# Устанавливаем модуль
+# Устанавливаем модуль (теперь у пользователя node есть права на запись)
 RUN npm install officeparser
