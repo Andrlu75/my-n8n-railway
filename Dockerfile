@@ -1,30 +1,39 @@
-# Базовый образ вашей версии n8n
 FROM n8nio/n8n:1.108.1
 
 USER root
 
-# Устанавливаем officeparser во временную папку и копируем модуль в n8n/node_modules
+# 1) Ставим officeparser во временный проект (с его prod-зависимостями)
 RUN set -eux; \
     mkdir -p /opt/n8n-extra && cd /opt/n8n-extra && \
-    # Инициализируем временный проект
     npm init -y >/dev/null 2>&1 && \
-    # Устанавливаем пакет в изоляции
-    npm install --omit=dev officeparser && \
-    # Убеждаемся, что целевая директория существует
-    mkdir -p /usr/local/lib/node_modules/n8n/node_modules && \
-    # Копируем установленный модуль в место, где его ищет нода "Code"
-    cp -R node_modules/officeparser /usr/local/lib/node_modules/n8n/node_modules/ && \
-    # Проверка резолва прямо на этапе билда
-    node -e "module.paths.unshift('/usr/local/lib/node_modules/n8n/node_modules'); console.log('resolved:', require.resolve('officeparser'))"; \
-    # Чистим временные файлы
-    rm -rf /opt/n8n-extra /root/.npm
+    npm ci --omit=dev && \
+    npm install --omit=dev officeparser
 
-# Разрешаем Code-ноде использовать внешний пакет и стандартные модули Node
-# (Их также можно установить через интерфейс Railway)
+# 2) Пути назначения
+ENV N8N_MAIN_NODEMOD="/usr/local/lib/node_modules/n8n/node_modules"
+ENV N8N_PNPM_BASE="/usr/local/lib/node_modules/n8n/node_modules/.pnpm"
+
+# 3) Копируем и сам пакет, и его зависимости в основной процесс n8n
+RUN set -eux; \
+    mkdir -p "$N8N_MAIN_NODEMOD"; \
+    cp -R /opt/n8n-extra/node_modules/* "$N8N_MAIN_NODEMOD"/
+
+# 4) Копируем и в task-runner (pnpm-папка)
+RUN set -eux; \
+    TR_FOLDER="$(ls -1 "$N8N_PNPM_BASE" | grep '^@n8n+task-runner@' | head -n1)"; \
+    mkdir -p "$N8N_PNPM_BASE/$TR_FOLDER/node_modules"; \
+    cp -R /opt/n8n-extra/node_modules/* "$N8N_PNPM_BASE/$TR_FOLDER/node_modules"/
+
+# 5) Проверка резолва (основной процесс)
+RUN node -e "module.paths.unshift(process.env.N8N_MAIN_NODEMOD); console.log('resolved:', require.resolve('officeparser'))"
+
+# 6) Чистка и права
+RUN rm -rf /opt/n8n-extra /root/.npm && \
+    chown -R node:node "$N8N_MAIN_NODEMOD"
+
+USER node
+
+# Разрешаем Code-нoде пользоваться внешним модулем и builtin'ами
 ENV NODE_FUNCTION_ALLOW_EXTERNAL=officeparser
 ENV NODE_FUNCTION_ALLOW_BUILTIN=*
 
-# Права на модуль — пользователю node
-RUN chown -R node:node /usr/local/lib/node_modules/n8n/node_modules/officeparser
-
-USER node
