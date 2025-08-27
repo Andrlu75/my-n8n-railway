@@ -1,18 +1,20 @@
-# Базовый образ — на вашей версии n8n
+# Используем вашу версию n8n в качестве базового образа
 FROM n8nio/n8n:1.108.1
 
+# Переключаемся на пользователя root
 USER root
-# Устанавливаем пакет прямо в установку n8n
-# Это и есть тот самый каталог, где у n8n лежит своё node_modules
+
+# >>> ИСПРАВЛЕНИЕ <<<
+# Обновляем npm до последней версии, чтобы он поддерживал протокол "workspace:"
+RUN npm install -g npm@latest
+
+# Теперь переходим в директорию установки n8n и устанавливаем officeparser.
 RUN cd /usr/local/lib/node_modules/n8n \
  && npm install --omit=dev officeparser \
  && npm cache clean --force
 
-# (необязательно, но полезно) Проверка на этапе билда:
-RUN node -e "console.log('officeparser path =', require.resolve('officeparser'))"
+# Проверка на этапе сборки (используем обновленный npm)
+RUN cd /usr/local/lib/node_modules/n8n && node -e "console.log('officeparser path:', require.resolve('officeparser'))"
 
-# Разрешаем Code-нoде использовать внешний пакет и стандартные модули Node
-ENV NODE_FUNCTION_ALLOW_EXTERNAL=officeparser
-ENV NODE_FUNCTION_ALLOW_BUILTIN=*
-
+# Переключаемся обратно на стандартного пользователя n8n
 USER node
